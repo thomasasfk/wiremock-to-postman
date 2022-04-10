@@ -1,15 +1,15 @@
 let protocolMappings = {
     'https:': 'https',
     'http:': 'http'
-};
+}
 
 function promptUserDownload(json, filename) {
-    let a = document.createElement('a');
+    let a = document.createElement('a')
     let blob = new Blob([JSON.stringify(json)],
-        {'type': 'application/json;charset=utf-8'});
-    a.href = window.URL.createObjectURL(blob);
-    a.download = `${filename}.json`;
-    a.click();
+        {'type': 'application/jsoncharset=utf-8'})
+    a.href = window.URL.createObjectURL(blob)
+    a.download = `${filename}.json`
+    a.click()
 }
 
 function determineMappingJson(mapping) {
@@ -18,26 +18,26 @@ function determineMappingJson(mapping) {
             JSON.parse(mapping.request.bodyPatterns[0].equalToJson)
             return true
         } catch (_) {
-            return false;
+            return false
         }
     }
-    return false;
+    return false
 }
 
 function createCollectionName(mappingUrl) {
-    return `${mappingUrl.toString().slice(0, -1)} ${Math.floor(new Date().getTime() / 1000)}`;
+    return `${mappingUrl.toString().slice(0, -1)} ${Math.floor(new Date().getTime() / 1000)}`
 }
 
 function mapIndividualRequest(mapping, uniqueUrlPath, idx) {
     let hasBody = mapping.request
         && mapping.request.bodyPatterns
         && Array.isArray(mapping.request.bodyPatterns)
-        && mapping.request.bodyPatterns.length > 0;
-    let isJson = hasBody ? determineMappingJson(mapping) : false;
+        && mapping.request.bodyPatterns.length > 0
+    let isJson = hasBody ? determineMappingJson(mapping) : false
 
-    let rawBody = null;
+    let rawBody = null
     if (hasBody) {
-        rawBody = isJson ? mapping.request.bodyPatterns[0].equalToJson : mapping.request.bodyPatterns[0].equalTo;
+        rawBody = isJson ? mapping.request.bodyPatterns[0].equalToJson : mapping.request.bodyPatterns[0].equalTo
     }
 
     return {
@@ -73,7 +73,7 @@ function mapIndividualRequest(mapping, uniqueUrlPath, idx) {
                     return {
                         'key': key,
                         'value': value
-                    };
+                    }
                 })
             }
         },
@@ -85,68 +85,111 @@ function doesntAlreadyExist(newMapping, existingMappings) {
     return existingMappings
         .filter(existingMapping => {
             return JSON.stringify(existingMapping) === JSON.stringify(newMapping)
-        }).length > 0;
+        }).length > 0
 }
 
 function getRequestsByUniqueUrl(stubMappingsJson) {
     return stubMappingsJson.mappings.reduce((mappingsByUrl, mapping) => {
         if (mapping.request && mapping.request.url) {
-            let url = mapping.request.url;
+            let url = mapping.request.url
             if (mappingsByUrl[url] && doesntAlreadyExist(mapping, mappingsByUrl[url])) {
-                mappingsByUrl[url].push(mapping);
+                mappingsByUrl[url].push(mapping)
             } else {
-                mappingsByUrl[url] = [mapping];
+                mappingsByUrl[url] = [mapping]
             }
         }
-        return mappingsByUrl;
-    }, {});
+        return mappingsByUrl
+    }, {})
 }
 
-function createPostmanCollection(requestsByUniqueUrl) {
+function createPostmanCollection(name, requestsByUniqueUrl) {
     return {
         'info': {
-            'name': collectionName,
+            'name': name,
             'schema': 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
         },
         'item': Object.keys(requestsByUniqueUrl).map(uniqueUrlPath => {
-            let mappings = requestsByUniqueUrl[uniqueUrlPath];
+            let mappings = requestsByUniqueUrl[uniqueUrlPath]
             return {
                 'name': uniqueUrlPath,
                 'item': mappings.map((mapping, idx) => {
-                    return mapIndividualRequest(mapping, uniqueUrlPath, idx);
+                    return mapIndividualRequest(mapping, uniqueUrlPath, idx)
                 })
             }
         })
-    };
+    }
 }
 
-async function handleChange(event) {
-    let item;
+function createAndSavePostmanCollection(url, requestsByUniqueUrl) {
+    let collectionName = createCollectionName(url)
+    let postmanCollection
+
     try {
-        let element = document.getElementById('stub-mappings-url');
-        stubMappingsUrl = new URL(element.value);
-        item = event.target.files.item(0);
-    } catch (e) {
-        alert('Error, invalid stub mapping url');
-        event.target.value = '';
-        return;
+        postmanCollection = createPostmanCollection(collectionName, requestsByUniqueUrl)
+    } catch (_) {
+        alert('Error processing wiremock file.')
+        return
     }
 
-    let stubMappingsText = await item.text();
-    let stubMappingsJson = JSON.parse(stubMappingsText);
-    let requestsByUniqueUrl = getRequestsByUniqueUrl(stubMappingsJson)
-
-    collectionName = createCollectionName(stubMappingsUrl)
-    postmanCollection = createPostmanCollection(requestsByUniqueUrl)
-
-    promptUserDownload(postmanCollection, collectionName);
+    promptUserDownload(postmanCollection, collectionName)
 }
 
-// global just for ease
-let stubMappingsUrl;
-let collectionName;
-let postmanCollection;
-document.getElementById('stub-mappings-input').onchange = handleChange;
-document.getElementById('stub-mappings-download').onclick = () => {
-    promptUserDownload(postmanCollection, createCollectionName(stubMappingsUrl));
-};
+function setDownloadState() {
+    elements.download.disabled = !(uniqueRequestsByUrl && stubMappingsUrl)
+}
+
+async function handleUrlChange(event) {
+    try {
+        stubMappingsUrl = new URL(elements.urlInput.value)
+        event.target.style.border = ''
+    } catch (e) {
+        stubMappingsUrl = null
+        event.target.style.border = 'solid 1px red'
+    } finally {
+        setDownloadState()
+    }
+}
+
+async function handleFileChange(event) {
+    let wiremockStubMappingsFile
+    try {
+        wiremockStubMappingsFile = event.target.files.item(0)
+        if (!wiremockStubMappingsFile) {
+            event.target.value = ''
+            uniqueRequestsByUrl = null
+            return
+        }
+
+        let stubMappingsText = await wiremockStubMappingsFile.text()
+        let stubMappingsJson = JSON.parse(stubMappingsText)
+        uniqueRequestsByUrl = getRequestsByUniqueUrl(stubMappingsJson)
+    } catch (e) {
+        alert('Invalid file selected.')
+        event.target.value = ''
+        uniqueRequestsByUrl = null
+        return
+    } finally {
+        setDownloadState()
+    }
+
+    createAndSavePostmanCollection()
+}
+
+const elements = {
+    fileInput: document.getElementById('stub-mappings-input'),
+    download: document.getElementById('stub-mappings-download'),
+    urlInput: document.getElementById('stub-mappings-url')
+}
+
+let uniqueRequestsByUrl
+let stubMappingsUrl
+
+elements.fileInput.onchange = handleFileChange
+elements.urlInput.oninput  = handleUrlChange
+elements.download.onclick = () => {
+    if (uniqueRequestsByUrl && stubMappingsUrl) {
+        createAndSavePostmanCollection(stubMappingsUrl, uniqueRequestsByUrl)
+    } else {
+        alert('Must provide valid url & wiremock file.')
+    }
+}
