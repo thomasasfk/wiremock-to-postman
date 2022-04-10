@@ -81,17 +81,24 @@ function mapIndividualRequest(mapping, uniqueUrlPath, idx) {
     }
 }
 
+function doesntAlreadyExist(newMapping, existingMappings) {
+    return existingMappings
+        .filter(existingMapping => {
+            return JSON.stringify(existingMapping) === JSON.stringify(newMapping)
+        }).length > 0;
+}
+
 function getRequestsByUniqueUrl(stubMappingsJson) {
-    return stubMappingsJson.mappings.reduce((acc, m) => {
-        if (m.request && m.request.url) {
-            let url = m.request.url;
-            if (acc[url]) {
-                acc[url].push(m);
+    return stubMappingsJson.mappings.reduce((mappingsByUrl, mapping) => {
+        if (mapping.request && mapping.request.url) {
+            let url = mapping.request.url;
+            if (mappingsByUrl[url] && doesntAlreadyExist(mapping, mappingsByUrl[url])) {
+                mappingsByUrl[url].push(mapping);
             } else {
-                acc[url] = [m];
+                mappingsByUrl[url] = [mapping];
             }
         }
-        return acc;
+        return mappingsByUrl;
     }, {});
 }
 
@@ -121,6 +128,7 @@ async function handleChange(event) {
         item = event.target.files.item(0);
     } catch (e) {
         alert('Error, invalid stub mapping url');
+        event.target.value = '';
         return;
     }
 
