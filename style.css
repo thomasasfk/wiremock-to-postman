@@ -4,3 +4,12 @@
     padding-top: 5vh;
     zoom: 250%;
 }
+
+.short {
+    margin-top: 1vh;
+    max-width: 35vh;
+}
+
+h2.small-margin {
+    margin-bottom: 0;
+}
