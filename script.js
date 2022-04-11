@@ -172,7 +172,9 @@ async function handleFileChange(event) {
         setDownloadState()
     }
 
-    createAndSavePostmanCollection()
+    if (uniqueRequestsByUrl && stubMappingsUrl) {
+        createAndSavePostmanCollection(stubMappingsUrl, uniqueRequestsByUrl)
+    }
 }
 
 const elements = {
